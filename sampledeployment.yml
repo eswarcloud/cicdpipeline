@@ -1,12 +1,33 @@
-kind: Pod                              # Object Type
-apiVersion: v1                     # API version
-metadata:                            # Set of data which describes the Object
-  name: testpod                  # Name of the Object
-  annotations:                                 # comments to describe the Object usage
-    description: our first testpod
-spec:                                     # Data which describes the state of the Object
-  containers:                        # Data which describes the Container details
-    - name: c00                     # Name of the Container
-      image: ubuntu                 # Base Image which is used to create Container
-      command: ["/bin/bash", "-c", "while true; do echo Hello-Students; sleep 5 ; done"]
-
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: mydeployment
+spec:
+  replicas: 1
+  selector:      
+    matchLabels:
+     env: CICD
+  template:
+    metadata:
+      name: testpod8
+      labels:
+        env: CICD
+    spec:
+     containers:
+       - name: c00
+         image: adamtravis/wezvacicd:latest
+         ports:
+          - containerPort: 8080
+---
+kind: Service                             
+apiVersion: v1
+metadata:
+  name: demoservice
+spec:
+  ports:
+    - port: 8080                              
+      targetPort: 8080                     
+  selector:
+    env: CICD
+	
+ 
