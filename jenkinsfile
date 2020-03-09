@@ -101,14 +101,14 @@ pipeline {
     }
   }
   
-  stage('Build Image') 
+   stage('Build Image') 
   {
     agent { label 'demo' }
     steps{
       script {
           docker.withRegistry( 'https://registry.hub.docker.com', 'dockerhub' ) {
              /* Build Docker Image locally */
-             myImage = docker.build("adamtravis/testimg")
+             myImage = docker.build("adamtravis/wezvacicd:latest")
 
              /* Push the container to the Registry */
              myImage.push()
@@ -117,11 +117,24 @@ pipeline {
     }
   }
 
+
+   stage('Deploy')
+   {
+       agent { label 'deploy' }
+	   steps {
+	    echo "Checkout Deployment configuration files .."
+	    git branch: 'master', url: 'https://gitlab.com/scmlearningcentre/WEZVACICD.git'
+	    script {
+            kubernetesDeploy(kubeconfigId: 'demokubeconfig',configs: 'sampledeployment.yml')
+		}
+	   }
+	}
+	
   stage('Smoke Test')
   {
     agent { label 'demo' }
     steps {
-      sh "chmod +x runsanity.sh; ./runsanity.sh adamtravis/testimg"
+      sh "chmod +x runsanity.sh; ./runsanity.sh adamtravis/wezvacicd:latest"
     }
   }
   
