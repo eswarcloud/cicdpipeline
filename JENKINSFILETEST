@@ -1,9 +1,10 @@
 pipeline {
- agent any
+ agent none
  stages
  {
   stage('Checkout')
   {
+  agent { label 'demo' }
    steps { 
     git branch: 'master', url: 'https://gitlab.com/scmlearningcentre/WEZVACICD.git'
    }
@@ -11,6 +12,7 @@ pipeline {
 
   stage('PRECHECK')
   {
+   agent { label 'demo' }
     when { changeset "samplejar/*"}
     steps {
        echo "IT WORKED"
