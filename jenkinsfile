@@ -1,8 +1,10 @@
 pipeline {
  agent none
+ 
  options {  
-     timeout(time: 10, unit: 'MINUTES') 
+     timeout(time: 1, unit: 'HOURS')
  }
+ 
  parameters {
     booleanParam(name: 'UNITTEST', defaultValue: true, description: 'Enable UnitTests ?')
 	booleanParam(name: 'CODEANALYSIS', defaultValue: true, description: 'Enable CODE-ANALYSIS ?')
@@ -17,10 +19,27 @@ pipeline {
     git branch: 'master', url: 'https://gitlab.com/scmlearningcentre/WEZVACICD.git'
    }
   }
+  
+  stage('PreCheck')
+  {
+  agent { label 'demo' }
+   when { 
+     anyOf {
+           changeset "samplejar/**"
+           changeset "samplewar/**"
+     }
+   }
+   steps {
+       script {
+          env.BUILDME = "yes" // Enable further Build Stages
+       }
+   }
+  }
 
   stage('Build Artifacts')
   {
    agent { label 'demo' }
+   when {environment name: 'BUILDME', value: 'yes'}
    steps { 
      script {
 	    if (params.UNITTEST) {
@@ -46,7 +65,10 @@ pipeline {
   {
    agent { label 'demo' }
    when {
-     expression { return params.CODEANALYSIS } 
+     allOf {
+         expression { return params.CODEANALYSIS }
+         environment name: 'BUILDME', value: 'yes'
+     }
    }
    steps {
      echo "Running Code Coverage ..."  
@@ -59,6 +81,7 @@ pipeline {
   stage('Stage Artifacts') 
   {          
    agent { label 'demo' }
+   when {environment name: 'BUILDME', value: 'yes'}
    steps {          
     script { 
 	    /* Define the Artifactory Server details */
@@ -79,6 +102,7 @@ pipeline {
   stage('SonarQube Analysis') 
   {
     agent { label 'demo' }
+    when {environment name: 'BUILDME', value: 'yes'}
     steps{
      withSonarQubeEnv('mysonarqube') {
 	  dir ("./samplejar") {
@@ -89,9 +113,10 @@ pipeline {
   }
   
   stage("Quality Gate"){ 
+    when {environment name: 'BUILDME', value: 'yes'}
     steps{
 	 script {
-	  timeout(time: 1, unit: 'HOURS') { // Just in case something goes wrong, pipeline will be killed after a timeout
+	  timeout(time: 10, unit: 'MINUTES') { // Just in case something goes wrong, pipeline will be killed after a timeout
         def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv
         if (qg.status != 'OK') {
            error "Pipeline aborted due to quality gate failure: ${qg.status}"
@@ -104,6 +129,7 @@ pipeline {
    stage('Build Image') 
   {
     agent { label 'demo' }
+    when {environment name: 'BUILDME', value: 'yes'}
     steps{
       script {
           docker.withRegistry( 'https://registry.hub.docker.com', 'dockerhub' ) {
@@ -121,6 +147,7 @@ pipeline {
    stage('Deploy')
    {
        agent { label 'deploy' }
+       when {environment name: 'BUILDME', value: 'yes'}
 	   steps {
 	    echo "Checkout Deployment configuration files .."
 	    git branch: 'master', url: 'https://gitlab.com/scmlearningcentre/WEZVACICD.git'
@@ -133,6 +160,7 @@ pipeline {
   stage('Smoke Test')
   {
     agent { label 'demo' }
+    when {environment name: 'BUILDME', value: 'yes'}
     steps {
       sh "chmod +x runsanity.sh; ./runsanity.sh adamtravis/wezvacicd:latest"
     }
