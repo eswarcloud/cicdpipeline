@@ -1,26 +1,24 @@
 pipeline {
- agent none
- 
- options {  
+  agent none
+  options {
      timeout(time: 1, unit: 'HOURS')
- }
- 
- parameters {
-    booleanParam(name: 'UNITTEST', defaultValue: true, description: 'Enable UnitTests ?')
-    booleanParam(name: 'CODEANALYSIS', defaultValue: true, description: 'Enable CODE-ANALYSIS ?')
- }
+   }
 
- stages
+  parameters {
+    booleanParam(name: 'UNITTEST', defaultValue: true, description: 'Enable UnitTests ?')
+	booleanParam(name: 'CODEANALYSIS', defaultValue: true, description: 'Enable CODE-ANALYSIS ?')
+  }
+
+  stages
  {
   stage('Checkout')
   {
-  agent { label 'demo' }
-   steps { 
-    git branch: 'master', url: 'https://gitlab.com/scmlearningcentre/WEZVACICD.git'
-   }
+       agent { label 'demo' }
+       steps { 
+          git branch: 'master', url: 'https://gitlab.com/scmlearningcentre/WEZVACICD.git'
+       }
   }
-  
-  // Sets a env variable based on commits made on samplejar/war dir //
+
   stage('PreCheck')
   {
   agent { label 'demo' }
@@ -36,6 +34,7 @@ pipeline {
        }
    }
   }
+
 
   stage('Build Artifacts')
   {
@@ -74,29 +73,8 @@ pipeline {
    steps {
      echo "Running Code Coverage ..."  
 	 dir ("./samplejar") {
-	   sh "mvn  org.jacoco:jacoco-maven-plugin:0.5.5.201112152213:prepare-agent"
+	   sh "mvn org.jacoco:jacoco-maven-plugin:0.5.5.201112152213:prepare-agent"
 	 }
-   }
-  }
-  
-  stage('Stage Artifacts') 
-  {          
-   agent { label 'demo' }
-   when {environment name: 'BUILDME', value: 'yes'}
-   steps {          
-    script { 
-	    /* Define the Artifactory Server details */
-        def server = Artifactory.server 'myartifactory'
-        def uploadSpec = """{
-            "files": [{
-            "pattern": "samplewar/target/samplewar.war", 
-            "target": "test"                   
-            }]
-        }"""
-        
-        /* Upload the war to  Artifactory repo */
-        server.upload(uploadSpec)
-    }
    }
   }
   
@@ -105,14 +83,14 @@ pipeline {
     agent { label 'demo' }
     when {environment name: 'BUILDME', value: 'yes'}
     steps{
-     withSonarQubeEnv('mysonarqube') {
+     withSonarQubeEnv('demosonarqube') {
 	  dir ("./samplejar") {
          sh 'mvn sonar:sonar'
 	  }
      } 
     }
   }
-  
+
   stage("Quality Gate"){ 
     when {environment name: 'BUILDME', value: 'yes'}
     steps{
@@ -126,48 +104,44 @@ pipeline {
 	 }
     }
   }
-  
-   stage('Build Image') 
-  {
-    agent { label 'demo' }
-    when {environment name: 'BUILDME', value: 'yes'}
-    steps{
-      script {
-          docker.withRegistry( 'https://registry.hub.docker.com', 'dockerhub' ) {
-             /* Build Docker Image locally */
-             myImage = docker.build("adamtravis/wezvacicd:latest")
 
-             /* Push the container to the Registry */
-             myImage.push()
-          }
-      }
+  stage('Stage Artifacts') 
+  {          
+   agent { label 'demo' }
+   when {environment name: 'BUILDME', value: 'yes'}
+   steps {          
+    script { 
+	    /* Define the Artifactory Server details */
+        def server = Artifactory.server 'demoartifactory'
+        def uploadSpec = """{
+            "files": [{
+            "pattern": "samplewar/target/samplewar.war", 
+            "target": "democicd"                   
+            }]
+        }"""
+        
+        /* Upload the war to  Artifactory repo */
+        server.upload(uploadSpec)
     }
+   }
   }
 
-
-   stage('Deploy')
-   {
-       agent { label 'deploy' }
-       when {environment name: 'BUILDME', value: 'yes'}
-	   steps {
-	    echo "Checkout Deployment configuration files .."
-	    git branch: 'master', url: 'https://gitlab.com/scmlearningcentre/WEZVACICD.git'
-	    script {
-            kubernetesDeploy(kubeconfigId: 'demokubeconfig',configs: 'sampledeployment.yml')
-		}
-	   }
-	}
-	
-  stage('Smoke Test')
-  {
-    agent { label 'demo' }
+  stage ('Deploy'){
+    agent {label 'pilot'}
+	when {environment name: 'BUILDME', value: 'yes'}
+    steps {
+        git branch: 'master', url: 'https://gitlab.com/scmlearningcentre/WEZVACICD.git'
+        step([$class: 'DockerComposeBuilder', dockerComposeFile: 'docker-compose.yml', option: [$class: 'StartAllServices'], useCustomDockerComposeFile: false])
+    }          
+  }
+  
+  stage ('Smoke Test'){
+    agent {label 'pilot'}
     when {environment name: 'BUILDME', value: 'yes'}
     steps {
-      sh "chmod +x runsanity.sh; ./runsanity.sh adamtravis/wezvacicd:latest"
-    }
+      sh "sleep 10; chmod +x runsmokes.sh; ./runsmokes.sh"
+    }      
   }
-  
+
  } //End of Stages
-
-} //End of Pipeline
-
+}
