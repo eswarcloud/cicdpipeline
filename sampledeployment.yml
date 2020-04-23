@@ -15,7 +15,7 @@ spec:
     spec:
      containers:
        - name: c00
-         image: adamtravis/wezvacicd:latest
+         image: adamtravis/wildfly
          ports:
           - containerPort: 8080
 ---
