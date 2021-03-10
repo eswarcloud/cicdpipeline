@@ -8,7 +8,6 @@ services:
   volumes:
   - ./sanity:/var/log/wezva
   restart: always
-  command: -Djboss.server.log.dir=/var/log/wezva
   depends_on:
     - redis
  redis:
